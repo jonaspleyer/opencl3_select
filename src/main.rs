@@ -22,25 +22,30 @@ const SELECTED_STYLE_FG: Color = tailwind::ZINC.c300;
 const SELECTED_STYLE_FG_LIGHT: Color = tailwind::ZINC.c500;
 const TEXT_COLOR: Color = tailwind::ZINC.c200;
 
+#[derive(Clone, Debug)]
 struct PlatformItem {
     info: clinfo::PlatformInfo,
     devices: DeviceList,
 }
 
+#[derive(Clone, Debug)]
 struct DeviceItem {
     info: clinfo::DeviceInfo,
 }
 
+#[derive(Clone, Debug)]
 struct PlatformList {
     state: ListState,
     items: Vec<PlatformItem>,
 }
 
+#[derive(Clone, Debug)]
 struct DeviceList {
     state: ListState,
     items: Vec<DeviceItem>,
 }
 
+#[derive(Clone, Debug)]
 struct App {
     currently_left: bool,
     items: PlatformList,
