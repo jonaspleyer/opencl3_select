@@ -6,18 +6,18 @@
 //!
 //! # Features
 //! - [serde] support for (de)serialization
-//! - [display] provides a CLI display
+//! - [ratatui] provides a CLI display
 
 mod clinfo;
-#[cfg(feature = "display")]
+#[cfg(feature = "ratatui")]
 mod display;
 mod error;
 #[cfg(feature = "serde")]
 mod storage;
 
 pub use clinfo::*;
-#[cfg(feature = "display")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "display")))]
+#[cfg(feature = "ratatui")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "ratatui")))]
 pub use display::*;
 pub use error::*;
 #[cfg(feature = "serde")]

@@ -20,6 +20,6 @@ serde_yaml = { version = "0.9.32", optional = true }
 thiserror = "1.0.57"
 
 [features]
-default = [ "serde", "display" ]
+default = [ "serde", "ratatui" ]
 serde = ["dep:serde", "dep:serde_json", "dep:serde_xml", "dep:serde_yaml", "dep:serde_toml"]
-display = [ "dep:crossterm", "dep:ratatui" ]
+ratatui = [ "dep:crossterm", "dep:ratatui" ]

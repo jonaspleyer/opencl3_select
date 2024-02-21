@@ -12,8 +12,8 @@ pub enum ClSelectError {
 
     /// failed to display
     #[error("failed to display")]
-    #[cfg(feature = "display")]
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "display")))]
+    #[cfg(feature = "ratatui")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "ratatui")))]
     Display(#[from] std::io::Error),
 
     /// error during (de)serialization
