@@ -21,12 +21,12 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct PriorityList<T> {
+pub struct UniquePriorityList<T> {
     selected: Vec<T>,
     remaining: Vec<T>,
 }
 
-impl<T> PriorityList<T> {
+impl<T> UniquePriorityList<T> {
     /// Construct a new empty [PriorityList]
     /// ```
     /// use opencl3_select::PriorityList;
@@ -50,8 +50,13 @@ impl<T> PriorityList<T> {
     }
 
     /// Adds another member to the priority list
-    pub fn push(&mut self, element: T) {
-        self.remaining.push(element);
+    pub fn push(&mut self, element: T)
+    where
+        T: PartialEq,
+    {
+        if !self.remaining.contains(&element) && !self.selected.contains(&element) {
+            self.remaining.push(element);
+        }
     }
 
     /// Adds another element and sets it as the first priority
@@ -92,10 +97,14 @@ impl<T> PriorityList<T> {
     }
 }
 
-impl<T> From<Vec<T>> for PriorityList<T> {
-    fn from(value: Vec<T>) -> Self {
+impl<T, I> From<I> for UniquePriorityList<T>
+where
+    I: IntoIterator<Item = T>,
+    T: Eq,
+{
+    fn from(value: I) -> Self {
         Self {
-            selected: value,
+            selected: value.into_iter().collect(),
             remaining: Vec::new(),
         }
     }

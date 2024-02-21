@@ -67,7 +67,7 @@ impl PlatformInfo {
 }
 
 /// Contains information about a [Device](opencl3::device::Device)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct DeviceInfo {
     // VENDOR
