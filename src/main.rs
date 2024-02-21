@@ -105,10 +105,10 @@ impl App {
         if self.currently_left {
             self.items.state.select(Some(self.items.items.len() - 1))
         } else if let Some(i) = self.items.state.selected() {
-            let device_items = &mut self.items.items.get_mut(i).unwrap().devices;
-            device_items
+            let device_list = &mut self.items.items.get_mut(i).unwrap().devices;
+            device_list
                 .state
-                .select(Some(device_items.items.len() - 1));
+                .select(Some(device_list.items.len() - 1));
         }
     }
 
@@ -131,8 +131,8 @@ impl App {
         if self.currently_left {
             self.items.next();
         } else if let Some(i) = self.items.state.selected() {
-            let device_items = &mut self.items.items.get_mut(i).unwrap().devices;
-            device_items.next();
+            let device_list = &mut self.items.items.get_mut(i).unwrap().devices;
+            device_list.next();
         }
     }
 
@@ -283,13 +283,17 @@ impl App {
         let inner_area = outer_block.inner(outer_area);
         outer_block.render(outer_area, buf);
 
+        // Find index of platform
         if let Some(si) = self.items.state.selected() {
-            let current_devices = self.items.items[si].info.devices();
+            // Obtain all devices under platform
             let style = self.get_fg_style(false);
+            let current_devices = &mut self.items.items.get_mut(si).unwrap();
             let items: Vec<ListItem> = current_devices
+                .devices
+                .items
                 .iter()
                 .enumerate()
-                .map(|(i, device)| device.to_list_item(i))
+                .map(|(i, device)| device.info.to_list_item(i))
                 .collect();
             let items = List::new(items)
                 .block(inner_block)
@@ -297,7 +301,7 @@ impl App {
                 .highlight_symbol(">")
                 .highlight_spacing(HighlightSpacing::Always);
 
-            StatefulWidget::render(items, inner_area, buf, &mut self.items.state);
+            StatefulWidget::render(items, inner_area, buf, &mut current_devices.devices.state);
         }
     }
 
