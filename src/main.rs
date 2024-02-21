@@ -106,9 +106,7 @@ impl App {
             self.items.state.select(Some(self.items.items.len() - 1))
         } else if let Some(i) = self.items.state.selected() {
             let device_list = &mut self.items.items.get_mut(i).unwrap().devices;
-            device_list
-                .state
-                .select(Some(device_list.items.len() - 1));
+            device_list.state.select(Some(device_list.items.len() - 1));
         }
     }
 
@@ -218,14 +216,14 @@ impl App {
     fn get_fg_style(&self, is_left: bool) -> Style {
         if self.currently_left == is_left {
             Style::default()
-            .add_modifier(Modifier::BOLD)
-            .add_modifier(Modifier::REVERSED)
-            .fg(SELECTED_STYLE_FG)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::REVERSED)
+                .fg(SELECTED_STYLE_FG)
         } else {
             Style::default()
-            .add_modifier(Modifier::BOLD)
-            .add_modifier(Modifier::REVERSED)
-            .fg(SELECTED_STYLE_FG_LIGHT)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::REVERSED)
+                .fg(SELECTED_STYLE_FG_LIGHT)
         }
     }
 
