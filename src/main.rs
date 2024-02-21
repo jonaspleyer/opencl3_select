@@ -119,6 +119,10 @@ impl App {
             .min(100);
     }
 
+    fn set_priority(&mut self) {
+        todo!()
+    }
+
     fn move_right(&mut self) {
         self.currently_left = false;
     }
@@ -164,6 +168,7 @@ impl App {
                         Char('G') => self.go_bottom(),
                         Char('H') => self.move_divider(-5),
                         Char('L') => self.move_divider(5),
+                        Char('s') => self.set_priority(),
                         _ => {}
                     }
                 }
