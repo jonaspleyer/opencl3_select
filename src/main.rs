@@ -5,6 +5,7 @@ mod storage;
 
 use clinfo::DeviceInfo;
 use error::Result;
+use opencl3_select::UniquePriorityList;
 
 use std::{io, io::stdout};
 
@@ -28,7 +29,7 @@ struct PlatformItem {
     devices: DeviceList,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct DeviceItem {
     info: clinfo::DeviceInfo,
 }
@@ -50,6 +51,7 @@ struct App {
     currently_left: bool,
     items: PlatformList,
     divider_percentage: u16,
+    priority_list: UniquePriorityList<(usize, usize)>,
 }
 
 fn main() -> Result<()> {
@@ -86,11 +88,14 @@ impl App {
             currently_left: true,
             items: PlatformList::from_platforms(platforms),
             divider_percentage: 40,
+            priority_list: UniquePriorityList::new(),
         }
     }
 
     /// Changes the status of the selected list item
-    fn change_status(&mut self) {}
+    fn push_priority(&mut self) {
+        // Get currently selected device
+    }
 
     fn go_top(&mut self) {
         if self.currently_left {
@@ -122,8 +127,34 @@ impl App {
             .min(100);
     }
 
-    fn set_priority(&mut self) {
-        todo!()
+    fn currently_selected_device(&self) -> Option<&DeviceItem> {
+        if let Some(i) = self.items.state.selected() {
+            let devices = &self.items.items[i].devices;
+            return devices.state.selected().and_then(|j| devices.items.get(j));
+        }
+        None
+    }
+
+    fn currently_selected_device_index(&self) -> Option<(usize, usize)> {
+        if let Some(i) = self.items.state.selected() {
+            let devices = &self.items.items[i].devices;
+            return devices.state.selected().and_then(|j| Some((i, j)));
+        }
+        None
+    }
+
+    fn set_priority(&mut self, n: usize) {
+        // Get selected item
+        if let Some(element) = self.currently_selected_device_index() {
+            self.priority_list.push_set_nth(element, n)
+        }
+    }
+
+    fn get_device(&self, index: &(usize, usize)) -> Option<&DeviceItem> {
+        self.items
+            .items
+            .get(index.0)
+            .and_then(|platform| platform.devices.items.get(index.1))
     }
 
     fn move_right(&mut self) {
@@ -137,6 +168,8 @@ impl App {
     fn next(&mut self) {
         if self.currently_left {
             self.items.next();
+            // If nothing is selected on the right hand side, we select
+            // the first item
         } else if let Some(i) = self.items.state.selected() {
             let device_list = &mut self.items.items.get_mut(i).unwrap().devices;
             device_list.next();
@@ -171,7 +204,16 @@ impl App {
                         Char('G') => self.go_bottom(),
                         Char('H') => self.move_divider(-5),
                         Char('L') => self.move_divider(5),
-                        Char('s') => self.set_priority(),
+                        Char('0') => self.set_priority(0),
+                        Char('1') => self.set_priority(1),
+                        Char('2') => self.set_priority(2),
+                        Char('3') => self.set_priority(3),
+                        Char('4') => self.set_priority(4),
+                        Char('5') => self.set_priority(5),
+                        Char('6') => self.set_priority(6),
+                        Char('7') => self.set_priority(7),
+                        Char('8') => self.set_priority(8),
+                        Char('9') => self.set_priority(9),
                         _ => {}
                     }
                 }
@@ -190,9 +232,10 @@ impl Widget for &mut App {
         let vertical = Layout::vertical([
             Constraint::Length(2),
             Constraint::Min(0),
+            Constraint::Min(0),
             Constraint::Length(2),
         ]);
-        let [header_area, rest_area, footer_area] = vertical.areas(area);
+        let [header_area, rest_area, priority_area, footer_area] = vertical.areas(area);
 
         // Create two chunks with equal vertical screen space. One for the list and the other for
         // the info block.
@@ -205,7 +248,7 @@ impl Widget for &mut App {
         self.render_title(header_area, buf);
         self.render_platforms(left_platform_list, buf);
         self.render_devices(right_device_list, buf);
-        // TODO self.render_priority_list(.., buf);
+        self.render_priority_list(priority_area, buf);
         self.render_footer(footer_area, buf);
     }
 }
@@ -310,6 +353,45 @@ impl App {
                 .highlight_spacing(HighlightSpacing::Always);
 
             StatefulWidget::render(items, inner_area, buf, &mut current_devices.devices.state);
+        }
+    }
+
+    fn render_priority_list(&mut self, area: Rect, buf: &mut Buffer) {
+        let outer_block = Block::default()
+            .borders(Borders::NONE)
+            .fg(TEXT_COLOR)
+            .bg(HEADER_BG)
+            .title("Devices")
+            .title_alignment(Alignment::Center);
+        let inner_block = Block::default()
+            .borders(Borders::NONE)
+            .fg(TEXT_COLOR)
+            .bg(NORMAL_ROW_COLOR);
+
+        let outer_area = area;
+        let inner_area = outer_block.inner(outer_area);
+        outer_block.render(outer_area, buf);
+
+        // Find index of platform
+        if let Some(si) = self.items.state.selected() {
+            // Obtain all devices under platform
+            let style = self.get_fg_style(false);
+            let priority_list = self.priority_list.view_priority_list();
+            let items: Vec<ListItem> = priority_list
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, device_index)| {
+                    self.get_device(device_index)
+                        .and_then(|device| Some(device.info.to_list_item(i)))
+                })
+                .collect();
+            let items = List::new(items)
+                .block(inner_block)
+                .highlight_style(style)
+                .highlight_symbol(">")
+                .highlight_spacing(HighlightSpacing::Always);
+
+            ratatui::widgets::Widget::render(items, inner_area, buf);
         }
     }
 
