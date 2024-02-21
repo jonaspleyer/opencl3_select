@@ -64,6 +64,11 @@ impl<T> UniquePriorityList<T> {
         self.selected.insert(0, element)
     }
 
+    /// Adds another elements and sets it as the nth priority
+    pub fn push_set_nth(&mut self, element: T, n: usize) {
+        self.selected.insert(n, element)
+    }
+
     /// View the current priority list
     pub fn view_priority_list(&self) -> impl IntoIterator<Item = &T> {
         self.selected.iter()
