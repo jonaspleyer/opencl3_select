@@ -159,7 +159,7 @@ impl App {
                         Char('h') | Left => self.move_left(),
                         Char('j') | Down => self.next(),
                         Char('k') | Up => self.previous(),
-                        Char('l') | Right | Enter => self.move_right(),
+                        Char('l') | Right => self.move_right(),
                         Char('g') => self.go_top(),
                         Char('G') => self.go_bottom(),
                         Char('H') => self.move_divider(-5),
