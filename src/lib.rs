@@ -12,6 +12,7 @@ mod clinfo;
 #[cfg(feature = "ratatui")]
 mod display;
 mod error;
+mod priority;
 #[cfg(feature = "serde")]
 mod storage;
 
@@ -20,6 +21,7 @@ pub use clinfo::*;
 #[cfg_attr(doc_cfg, doc(cfg(feature = "ratatui")))]
 pub use display::*;
 pub use error::*;
+pub use priority::*;
 #[cfg(feature = "serde")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "serde")))]
 pub use storage::*;
