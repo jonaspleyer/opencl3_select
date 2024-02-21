@@ -19,27 +19,31 @@ const HEADER_BG: Color = tailwind::ZINC.c950;
 const NORMAL_ROW_COLOR: Color = tailwind::ZINC.c950;
 const ALT_ROW_COLOR: Color = tailwind::ZINC.c900;
 const SELECTED_STYLE_FG: Color = tailwind::ZINC.c300;
+const SELECTED_STYLE_FG_LIGHT: Color = tailwind::ZINC.c500;
 const TEXT_COLOR: Color = tailwind::ZINC.c200;
 
 struct PlatformItem {
     info: clinfo::PlatformInfo,
+    devices: DeviceList,
 }
 
 struct DeviceItem {
     info: clinfo::DeviceInfo,
 }
 
-struct StatefulList {
-    currently_left: bool,
-    state_left: ListState,
-    state_right: ListState,
+struct PlatformList {
+    state: ListState,
     items: Vec<PlatformItem>,
-    priority_list: Vec<usize>,
-    remaining: Vec<usize>,
+}
+
+struct DeviceList {
+    state: ListState,
+    items: Vec<DeviceItem>,
 }
 
 struct App {
-    items: StatefulList,
+    currently_left: bool,
+    items: PlatformList,
     divider_percentage: u16,
 }
 
@@ -74,7 +78,8 @@ fn restore_terminal() -> Result<()> {
 impl App {
     fn new<'a>(platforms: &Vec<clinfo::PlatformInfo>) -> App {
         App {
-            items: StatefulList::from_platforms(platforms),
+            currently_left: true,
+            items: PlatformList::from_platforms(platforms),
             divider_percentage: 40,
         }
     }
@@ -83,13 +88,28 @@ impl App {
     fn change_status(&mut self) {}
 
     fn go_top(&mut self) {
-        self.items.state_left.select(Some(0))
+        if self.currently_left {
+            self.items.state.select(Some(0));
+        } else if let Some(i) = self.items.state.selected() {
+            self.items
+                .items
+                .get_mut(i)
+                .unwrap()
+                .devices
+                .state
+                .select(Some(0));
+        }
     }
 
     fn go_bottom(&mut self) {
-        self.items
-            .state_left
-            .select(Some(self.items.items.len() - 1))
+        if self.currently_left {
+            self.items.state.select(Some(self.items.items.len() - 1))
+        } else if let Some(i) = self.items.state.selected() {
+            let device_items = &mut self.items.items.get_mut(i).unwrap().devices;
+            device_items
+                .state
+                .select(Some(device_items.items.len() - 1));
+        }
     }
 
     fn move_divider(&mut self, length: i16) {
@@ -97,6 +117,32 @@ impl App {
             .divider_percentage
             .saturating_add_signed(length)
             .min(100);
+    }
+
+    fn move_right(&mut self) {
+        self.currently_left = false;
+    }
+
+    fn move_left(&mut self) {
+        self.currently_left = true;
+    }
+
+    fn next(&mut self) {
+        if self.currently_left {
+            self.items.next();
+        } else if let Some(i) = self.items.state.selected() {
+            let device_items = &mut self.items.items.get_mut(i).unwrap().devices;
+            device_items.next();
+        }
+    }
+
+    fn previous(&mut self) {
+        if self.currently_left {
+            self.items.previous();
+        } else if let Some(i) = self.items.state.selected() {
+            let device_items = &mut self.items.items.get_mut(i).unwrap().devices;
+            device_items.previous();
+        }
     }
 }
 
@@ -110,10 +156,10 @@ impl App {
                     use KeyCode::*;
                     match key.code {
                         Char('q') | Esc => return Ok(()),
-                        Char('h') | Left => self.items.unselect(),
-                        Char('j') | Down => self.items.next(),
-                        Char('k') | Up => self.items.previous(),
-                        Char('l') | Right | Enter => self.change_status(),
+                        Char('h') | Left => self.move_left(),
+                        Char('j') | Down => self.next(),
+                        Char('k') | Up => self.previous(),
+                        Char('l') | Right | Enter => self.move_right(),
                         Char('g') => self.go_top(),
                         Char('G') => self.go_bottom(),
                         Char('H') => self.move_divider(-5),
@@ -164,6 +210,20 @@ impl App {
             .render(area, buf);
     }
 
+    fn get_fg_style(&self, is_left: bool) -> Style {
+        if self.currently_left == is_left {
+            Style::default()
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::REVERSED)
+            .fg(SELECTED_STYLE_FG)
+        } else {
+            Style::default()
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::REVERSED)
+            .fg(SELECTED_STYLE_FG_LIGHT)
+        }
+    }
+
     fn render_platforms(&mut self, area: Rect, buf: &mut Buffer) {
         // We create two blocks, one is for the header (outer) and the other is for list (inner).
         let outer_block = Block::default()
@@ -194,21 +254,17 @@ impl App {
             .collect();
 
         // Create a List from all list items and highlight the currently selected one
+        let style = self.get_fg_style(true);
         let items = List::new(items)
             .block(inner_block)
-            .highlight_style(
-                Style::default()
-                    .add_modifier(Modifier::BOLD)
-                    .add_modifier(Modifier::REVERSED)
-                    .fg(SELECTED_STYLE_FG),
-            )
+            .highlight_style(style)
             .highlight_symbol(">")
             .highlight_spacing(HighlightSpacing::Always);
 
         // We can now render the item list
         // (look careful we are using StatefulWidget's render.)
         // ratatui::widgets::StatefulWidget::render as stateful_render
-        StatefulWidget::render(items, inner_area, buf, &mut self.items.state_left);
+        StatefulWidget::render(items, inner_area, buf, &mut self.items.state);
     }
 
     fn render_devices(&mut self, area: Rect, buf: &mut Buffer) {
@@ -227,8 +283,9 @@ impl App {
         let inner_area = outer_block.inner(outer_area);
         outer_block.render(outer_area, buf);
 
-        if let Some(si) = self.items.state_left.selected() {
+        if let Some(si) = self.items.state.selected() {
             let current_devices = self.items.items[si].info.devices();
+            let style = self.get_fg_style(false);
             let items: Vec<ListItem> = current_devices
                 .iter()
                 .enumerate()
@@ -236,16 +293,11 @@ impl App {
                 .collect();
             let items = List::new(items)
                 .block(inner_block)
-                .highlight_style(
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                        .add_modifier(Modifier::REVERSED)
-                        .fg(SELECTED_STYLE_FG),
-                )
+                .highlight_style(style)
                 .highlight_symbol(">")
                 .highlight_spacing(HighlightSpacing::Always);
 
-            StatefulWidget::render(items, inner_area, buf, &mut self.items.state_left);
+            StatefulWidget::render(items, inner_area, buf, &mut self.items.state);
         }
     }
 
@@ -258,26 +310,33 @@ impl App {
     }
 }
 
-impl StatefulList {
-    fn from_platforms(platforms: &Vec<clinfo::PlatformInfo>) -> StatefulList {
-        StatefulList {
-            currently_left: true,
-            state_left: ListState::default(),
-            state_right: ListState::default(),
+impl PlatformList {
+    fn from_platforms(platforms: &Vec<clinfo::PlatformInfo>) -> PlatformList {
+        PlatformList {
+            state: ListState::default(),
             items: platforms
                 .clone()
                 .into_iter()
-                .map(|platform_info| PlatformItem {
-                    info: platform_info,
+                .map(|platform_info| {
+                    let items = platform_info
+                        .devices()
+                        .into_iter()
+                        .map(|info| DeviceItem { info })
+                        .collect();
+                    PlatformItem {
+                        info: platform_info,
+                        devices: DeviceList {
+                            state: ListState::default(),
+                            items,
+                        },
+                    }
                 })
                 .collect(),
-            priority_list: Vec::new(),
-            remaining: (0..platforms.len()).collect(),
         }
     }
 
     fn next(&mut self) {
-        let i = match self.state_left.selected() {
+        let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
                     0
@@ -287,11 +346,11 @@ impl StatefulList {
             }
             None => 0,
         };
-        self.state_left.select(Some(i));
+        self.state.select(Some(i));
     }
 
     fn previous(&mut self) {
-        let i = match self.state_left.selected() {
+        let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
                     self.items.len() - 1
@@ -301,13 +360,37 @@ impl StatefulList {
             }
             None => 0,
         };
-        self.state_left.select(Some(i));
+        self.state.select(Some(i));
+    }
+}
+
+impl DeviceList {
+    fn next(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.items.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
     }
 
-    fn unselect(&mut self) {
-        let offset = self.state_left.offset();
-        self.state_left.select(None);
-        *self.state_left.offset_mut() = offset;
+    fn previous(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.items.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
     }
 }
 
@@ -353,16 +436,16 @@ impl DeviceInfo {
         let mut text = Text::default();
         text.extend([
             Span::raw(self.vendor()),
-            Span::raw(format!("{}", self.vendor_id())),
+            Span::raw(format!("Vendor Id: {}", self.vendor_id())),
             Span::raw(self.vendor_id_text()),
             Span::raw(self.name()),
             Span::raw(self.version()),
-            Span::raw(format!("{}", self.r#type())),
+            Span::raw(format!("Type: {}", self.r#type())),
             Span::raw(self.type_text()),
             Span::raw(self.profile()),
             Span::raw(self.extensions()),
             Span::raw(self.opencl_c_version()),
-            Span::raw(format!("{}", self.svm_mem_capability())),
+            Span::raw(format!("SVM Mem Capability: {}", self.svm_mem_capability())),
         ]);
 
         ListItem::new(text).bg(bg_color)
