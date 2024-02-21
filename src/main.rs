@@ -324,27 +324,31 @@ impl App {
 
 impl PlatformList {
     fn from_platforms(platforms: &Vec<clinfo::PlatformInfo>) -> PlatformList {
-        PlatformList {
-            state: ListState::default(),
-            items: platforms
-                .clone()
-                .into_iter()
-                .map(|platform_info| {
-                    let items = platform_info
-                        .devices()
-                        .into_iter()
-                        .map(|info| DeviceItem { info })
-                        .collect();
-                    PlatformItem {
-                        info: platform_info,
-                        devices: DeviceList {
-                            state: ListState::default(),
-                            items,
-                        },
-                    }
-                })
-                .collect(),
+        let mut state = ListState::default();
+        let items: Vec<_> = platforms
+            .clone()
+            .into_iter()
+            .map(|platform_info| {
+                let items: Vec<_> = platform_info
+                    .devices()
+                    .into_iter()
+                    .map(|info| DeviceItem { info })
+                    .collect();
+                let mut state = ListState::default();
+                if items.len() > 0 {
+                    state.select(Some(0));
+                }
+
+                PlatformItem {
+                    info: platform_info,
+                    devices: DeviceList { state, items },
+                }
+            })
+            .collect();
+        if items.len() > 0 {
+            state.select(Some(0));
         }
+        PlatformList { state, items }
     }
 
     fn next(&mut self) {
