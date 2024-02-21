@@ -3,6 +3,7 @@ mod display;
 mod error;
 mod storage;
 
+use clinfo::DeviceInfo;
 use error::Result;
 
 use std::{io, io::stdout};
@@ -24,8 +25,14 @@ struct PlatformItem {
     info: clinfo::PlatformInfo,
 }
 
+struct DeviceItem {
+    info: clinfo::DeviceInfo,
+}
+
 struct StatefulList {
-    state: ListState,
+    currently_left: bool,
+    state_left: ListState,
+    state_right: ListState,
     items: Vec<PlatformItem>,
     priority_list: Vec<usize>,
     remaining: Vec<usize>,
@@ -33,6 +40,7 @@ struct StatefulList {
 
 struct App {
     items: StatefulList,
+    divider_percentage: u16,
 }
 
 fn main() -> Result<()> {
@@ -67,6 +75,7 @@ impl App {
     fn new<'a>(platforms: &Vec<clinfo::PlatformInfo>) -> App {
         App {
             items: StatefulList::from_platforms(platforms),
+            divider_percentage: 40,
         }
     }
 
@@ -74,11 +83,20 @@ impl App {
     fn change_status(&mut self) {}
 
     fn go_top(&mut self) {
-        self.items.state.select(Some(0))
+        self.items.state_left.select(Some(0))
     }
 
     fn go_bottom(&mut self) {
-        self.items.state.select(Some(self.items.items.len() - 1))
+        self.items
+            .state_left
+            .select(Some(self.items.items.len() - 1))
+    }
+
+    fn move_divider(&mut self, length: i16) {
+        self.divider_percentage = self
+            .divider_percentage
+            .saturating_add_signed(length)
+            .min(100);
     }
 }
 
@@ -98,6 +116,8 @@ impl App {
                         Char('l') | Right | Enter => self.change_status(),
                         Char('g') => self.go_top(),
                         Char('G') => self.go_bottom(),
+                        Char('H') => self.move_divider(-5),
+                        Char('L') => self.move_divider(5),
                         _ => {}
                     }
                 }
@@ -122,7 +142,10 @@ impl Widget for &mut App {
 
         // Create two chunks with equal vertical screen space. One for the list and the other for
         // the info block.
-        let vertical = Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)]);
+        let vertical = Layout::horizontal([
+            Constraint::Percentage(self.divider_percentage),
+            Constraint::Percentage(100 - self.divider_percentage),
+        ]);
         let [left_platform_list, right_device_list] = vertical.areas(rest_area);
 
         self.render_title(header_area, buf);
@@ -185,10 +208,46 @@ impl App {
         // We can now render the item list
         // (look careful we are using StatefulWidget's render.)
         // ratatui::widgets::StatefulWidget::render as stateful_render
-        StatefulWidget::render(items, inner_area, buf, &mut self.items.state);
+        StatefulWidget::render(items, inner_area, buf, &mut self.items.state_left);
     }
 
-    fn render_devices(&mut self, area: Rect, buf: &mut Buffer) {}
+    fn render_devices(&mut self, area: Rect, buf: &mut Buffer) {
+        let outer_block = Block::default()
+            .borders(Borders::NONE)
+            .fg(TEXT_COLOR)
+            .bg(HEADER_BG)
+            .title("Devices")
+            .title_alignment(Alignment::Center);
+        let inner_block = Block::default()
+            .borders(Borders::NONE)
+            .fg(TEXT_COLOR)
+            .bg(NORMAL_ROW_COLOR);
+
+        let outer_area = area;
+        let inner_area = outer_block.inner(outer_area);
+        outer_block.render(outer_area, buf);
+
+        if let Some(si) = self.items.state_left.selected() {
+            let current_devices = self.items.items[si].info.devices();
+            let items: Vec<ListItem> = current_devices
+                .iter()
+                .enumerate()
+                .map(|(i, device)| device.to_list_item(i))
+                .collect();
+            let items = List::new(items)
+                .block(inner_block)
+                .highlight_style(
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .add_modifier(Modifier::REVERSED)
+                        .fg(SELECTED_STYLE_FG),
+                )
+                .highlight_symbol(">")
+                .highlight_spacing(HighlightSpacing::Always);
+
+            StatefulWidget::render(items, inner_area, buf, &mut self.items.state_left);
+        }
+    }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
         Paragraph::new(
@@ -202,7 +261,9 @@ impl App {
 impl StatefulList {
     fn from_platforms(platforms: &Vec<clinfo::PlatformInfo>) -> StatefulList {
         StatefulList {
-            state: ListState::default(),
+            currently_left: true,
+            state_left: ListState::default(),
+            state_right: ListState::default(),
             items: platforms
                 .clone()
                 .into_iter()
@@ -216,7 +277,7 @@ impl StatefulList {
     }
 
     fn next(&mut self) {
-        let i = match self.state.selected() {
+        let i = match self.state_left.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
                     0
@@ -226,11 +287,11 @@ impl StatefulList {
             }
             None => 0,
         };
-        self.state.select(Some(i));
+        self.state_left.select(Some(i));
     }
 
     fn previous(&mut self) {
-        let i = match self.state.selected() {
+        let i = match self.state_left.selected() {
             Some(i) => {
                 if i == 0 {
                     self.items.len() - 1
@@ -240,13 +301,13 @@ impl StatefulList {
             }
             None => 0,
         };
-        self.state.select(Some(i));
+        self.state_left.select(Some(i));
     }
 
     fn unselect(&mut self) {
-        let offset = self.state.offset();
-        self.state.select(None);
-        *self.state.offset_mut() = offset;
+        let offset = self.state_left.offset();
+        self.state_left.select(None);
+        *self.state_left.offset_mut() = offset;
     }
 }
 
@@ -276,6 +337,32 @@ impl PlatformItem {
             style_platform_name(self.info.name(), self.info.version()),
             style_platform_name(self.info.name(), self.info.vendor()),
             style_platform_name(self.info.name(), self.info.profile()),
+        ]);
+
+        ListItem::new(text).bg(bg_color)
+    }
+}
+
+impl DeviceInfo {
+    fn to_list_item(&self, index: usize) -> ListItem {
+        let bg_color = match index % 2 {
+            0 => NORMAL_ROW_COLOR,
+            _ => ALT_ROW_COLOR,
+        };
+
+        let mut text = Text::default();
+        text.extend([
+            Span::raw(self.vendor()),
+            Span::raw(format!("{}", self.vendor_id())),
+            Span::raw(self.vendor_id_text()),
+            Span::raw(self.name()),
+            Span::raw(self.version()),
+            Span::raw(format!("{}", self.r#type())),
+            Span::raw(self.type_text()),
+            Span::raw(self.profile()),
+            Span::raw(self.extensions()),
+            Span::raw(self.opencl_c_version()),
+            Span::raw(format!("{}", self.svm_mem_capability())),
         ]);
 
         ListItem::new(text).bg(bg_color)

@@ -60,12 +60,12 @@ impl<T> PriorityList<T> {
     }
 
     /// View the current priority list
-    pub fn view_priority_list(&self) -> impl IntoIterator<Item=&T> {
+    pub fn view_priority_list(&self) -> impl IntoIterator<Item = &T> {
         self.selected.iter()
     }
 
     /// View the remaining items which are not selected for priority
-    pub fn view_remaining(&self) -> impl IntoIterator<Item=&T> {
+    pub fn view_remaining(&self) -> impl IntoIterator<Item = &T> {
         self.remaining.iter()
     }
 
